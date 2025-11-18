@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>8天正念呼吸训练营</title>
+    
+    <!-- 添加 Vercel Analytics 统计代码 -->
+    <script>
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+    
     <style>
         * {
             box-sizing: border-box;
@@ -111,22 +118,6 @@
         .scale-option input {
             margin-right: 5px;
         }
-        .result {
-            text-align: center;
-            padding: 20px;
-            margin-top: 20px;
-            border-radius: 5px;
-        }
-        .eligible {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .not-eligible {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
         .progress-bar {
             height: 6px;
             background-color: #e0e0e0;
@@ -159,7 +150,7 @@
         }
         .phone-icon {
             font-size: 40px;
-            color: #8e44ad;
+            color: #e74c3c;
             margin-right: 15px;
         }
         .phone-number {
@@ -175,11 +166,23 @@
             margin-bottom: 20px;
             font-size: 16px;
         }
-        .exit-btn {
-            background-color: #e74c3c;
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 10px 0;
         }
-        .exit-btn:hover {
-            background-color: #c0392b;
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -205,7 +208,7 @@
             </div>
             <div class="btn-container">
                 <button class="btn" onclick="showPage(2)">我已阅读并同意参与</button>
-                <button class="btn exit-btn" onclick="exitStudy()">退出</button>
+                <button class="btn" onclick="exitStudy()" style="background-color: #e74c3c;">退出</button>
             </div>
         </div>
         
@@ -349,9 +352,14 @@
                 </div>
             </div>
             
+            <div class="loading" id="loading">
+                <div class="loading-spinner"></div>
+                <p>正在提交数据，请稍候...</p>
+            </div>
+            
             <div class="btn-container">
                 <button class="btn" onclick="showPage(3)">上一步</button>
-                <button class="btn" onclick="calculateResults()">提交</button>
+                <button class="btn" onclick="calculateResults()" id="submitBtn">提交</button>
             </div>
         </div>
         
@@ -457,8 +465,8 @@
             showPage(4);
         }
         
-        // 计算并显示结果
-        function calculateResults() {
+        // 计算并显示结果 - 修复版本
+        async function calculateResults() {
             const questions = ['b1', 'b2', 'b3', 'b4', 'b5'];
             let allAnswered = true;
             userData.traitAnxietyScores = [];
@@ -481,23 +489,62 @@
             // 计算总分
             const stateTotal = userData.stateAnxietyScores.reduce((a, b) => a + b, 0);
             const traitTotal = userData.traitAnxietyScores.reduce((a, b) => a + b, 0);
+            const isEligible = stateTotal >= 10 && traitTotal >= 14;
             
-            // 判断是否符合条件
-            const stateEligible = stateTotal > 9.5;  // 即总分≥10分
-            const traitEligible = traitTotal > 13.5; // 即总分≥14分
-            const isEligible = stateEligible && traitEligible;
+            // 显示加载动画
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('submitBtn').disabled = true;
             
-            // 显示结果
-            showResults(isEligible, stateTotal, traitTotal);
+            try {
+                console.log('准备提交数据:', userData);
+                
+                // ✅ 关键修复：使用正确的Vercel地址
+                const API_BASE = 'https://mindful-eta-three.vercel.app';
+                console.log('正在提交到:', API_BASE);
+                
+                const response = await fetch(`${API_BASE}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                console.log('响应状态:', response.status);
+                const result = await response.json();
+                console.log('提交结果:', result);
+                
+                if (response.ok && result.success) {
+                    // 数据提交成功
+                    showResults(isEligible, stateTotal, traitTotal, '✅ 数据提交成功！');
+                } else {
+                    throw new Error(result.error || '提交失败');
+                }
+                
+            } catch (error) {
+                console.error('提交错误:', error);
+                // 网络错误，显示离线提示
+                showResults(isEligible, stateTotal, traitTotal, 
+                    '❌ 网络连接问题，数据提交失败。请检查网络连接后重试。');
+            } finally {
+                // 隐藏加载动画
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+            }
         }
         
         // 显示结果页面
-        function showResults(isEligible, stateTotal, traitTotal) {
+        function showResults(isEligible, stateTotal, traitTotal, message = '') {
             const resultMessage = document.getElementById('resultMessage');
             const contactInfo = document.getElementById('contactInfo');
             
+            let resultHtml = '';
+            if (message) {
+                resultHtml += `<p style="color: #e74c3c; font-weight: bold;">${message}</p>`;
+            }
+            
             if (isEligible) {
-                resultMessage.innerHTML = `
+                resultHtml += `
                     <p>谢谢您的填写。</p>
                     <p>您符合我们的训练营条件，请您参照以下联系方式加入训练营：</p>
                 `;
@@ -511,7 +558,7 @@
                     </div>
                 `;
             } else {
-                resultMessage.innerHTML = `
+                resultHtml += `
                     <p>谢谢您的填写。</p>
                     <p>感谢您的参与！我们后续会联系您参加训练营。</p>
                 `;
@@ -526,6 +573,7 @@
                 `;
             }
             
+            resultMessage.innerHTML = resultHtml;
             showPage(5);
         }
         
