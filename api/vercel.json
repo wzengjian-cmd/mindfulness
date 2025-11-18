@@ -2,14 +2,23 @@
   "version": 2,
   "builds": [
     {
-      "src": "*.js",
+      "src": "api/submit.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "*.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
+      "src": "/submit",
+      "dest": "/api/submit.js",
+      "methods": ["POST"]
+    },
+    {
       "src": "/(.*)",
-      "dest": "/$1"
+      "dest": "/index.html"
     }
   ]
 }
